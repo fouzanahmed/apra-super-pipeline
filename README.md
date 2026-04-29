@@ -2,7 +2,7 @@
 
 End-to-end data pipeline on APRA's public regulatory data ($4.5T AUM industry) — automated ingestion, dbt transformations, AI-powered querying, and a live Power BI dashboard. Deployed on AWS with Docker and CI/CD.
 
-![CI](https://github.com/YOUR_USERNAME/apra-super-pipeline/actions/workflows/dbt_test.yml/badge.svg)
+![CI](https://github.com/fouzanahmed/apra-super-pipeline/actions/workflows/dbt_test.yml/badge.svg)
 
 ## Stack
 
@@ -91,8 +91,3 @@ curl -X POST http://localhost:8000/query \
 
 See [SETUP.md](SETUP.md) for step-by-step AWS provisioning, RDS setup, and EC2 Airflow deployment.
 
-## Resume lines
-
-**AU:** "Built end-to-end regulatory analytics pipeline on APRA superannuation data ($4.5T AUM industry) — dbt + Airflow + AWS + Power BI with AI-powered natural language querying. Deployed via Docker with GitHub Actions CI/CD."
-
-**India/GCC:** "End-to-end financial regulatory data pipeline processing government-published industry statistics — Python, dbt, PySpark, AWS S3/RDS, Airflow, FastAPI, Power BI. Full CI/CD with GitHub Actions and Docker."
