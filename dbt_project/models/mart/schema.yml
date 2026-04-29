@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: fund_performance
+    description: "Per-fund returns ranked by peer group and overall, with fee percentile."
+    columns:
+      - name: abn
+        tests: [not_null]
+      - name: quarter_date
+        tests: [not_null]
+      - name: rank_5yr_overall
+        tests: [not_null]
+
+  - name: fee_vs_return
+    description: "Latest quarter fee vs 1yr return with value quadrant classification."
+    columns:
+      - name: value_quadrant
+        tests:
+          - accepted_values:
+              values: ["best_value", "expensive_performer", "cheap_underperformer", "worst_value"]
+
+  - name: member_flow
+    description: "Quarter-on-quarter member account changes and rolling annual flow."
+    columns:
+      - name: abn
+        tests: [not_null]
+      - name: quarter_date
+        tests: [not_null]
