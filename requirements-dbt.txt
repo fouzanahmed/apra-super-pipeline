@@ -1,0 +1,6 @@
+# dbt gets its own install — either a separate venv or run inside Docker.
+# Python 3.12 recommended; dbt-postgres 1.8.x supports Python 3.12/3.13.
+#
+#   pip install -r requirements-dbt.txt
+
+dbt-postgres==1.8.2

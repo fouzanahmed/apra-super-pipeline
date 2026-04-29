@@ -1,0 +1,14 @@
+# Install this on your local machine (Python 3.13 compatible wheels only).
+# Airflow and PySpark are NOT here — they run inside Docker.
+#
+#   pip install -r requirements-local.txt
+
+requests==2.32.3
+pandas==2.2.3
+openpyxl==3.1.5
+boto3==1.34.131
+sqlalchemy==2.0.31
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+ruff==0.5.0
+pytest==8.2.2
