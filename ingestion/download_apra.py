@@ -16,15 +16,15 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 APRA_SOURCES = {
     "mysuper_quarterly": {
-        "url": "https://www.apra.gov.au/sites/default/files/2025-03/Quarterly%20superannuation%20performance%20statistics%20-%20December%202024.xlsx",
+        "url": "https://www.apra.gov.au/sites/default/files/2026-02/Quarterly%20MySuper%20statistics%20from%20September%202020%20to%20December%202025.xlsx",
         "filename": "apra_mysuper_quarterly.xlsx",
     },
     "fund_level_quarterly": {
-        "url": "https://www.apra.gov.au/sites/default/files/2025-03/Quarterly%20Superannuation%20Fund%20Statistics%20December%202024.xlsx",
+        "url": "https://www.apra.gov.au/sites/default/files/2026-03/Quarterly%20Superannuation%20Fund%20Statistics%20December%202025.xlsx",
         "filename": "apra_fund_level_quarterly.xlsx",
     },
     "annual_bulletin": {
-        "url": "https://www.apra.gov.au/sites/default/files/2024-12/Annual%20superannuation%20bulletin%20June%202023.xlsx",
+        "url": "https://www.apra.gov.au/sites/default/files/2025-12/Annual%20superannuation%20bulletin%20June%202015%20to%20June%202025%20-%20Superannuation%20entities.xlsx",
         "filename": "apra_annual_bulletin.xlsx",
     },
 }
@@ -45,12 +45,28 @@ def download_file(key: str, source: dict) -> Path:
     return dest
 
 
-def clean_excel(path: Path, sheet_index: int = 0, header_row: int = 3) -> pd.DataFrame:
-    df = pd.read_excel(path, sheet_name=sheet_index, header=header_row, engine="openpyxl")
+_SKIP_SHEETS = {"cover", "notes", "contents", "important notice", "revisions",
+                "explanatory notes", "filters control", "charts", "charts data"}
+
+
+def clean_excel(path: Path) -> pd.DataFrame:
+    xl = pd.ExcelFile(path, engine="openpyxl")
+    data_sheets = [s for s in xl.sheet_names if s.strip().lower() not in _SKIP_SHEETS]
+    if not data_sheets:
+        raise ValueError(f"No data sheets found in {path.name}")
+    sheet = data_sheets[0]
+    # Scan first 10 rows to find the header row (first row where >3 cells are non-null)
+    raw = pd.read_excel(path, sheet_name=sheet, header=None, nrows=15, engine="openpyxl")
+    header_row = 0
+    for i, row in raw.iterrows():
+        if row.notna().sum() > 3:
+            header_row = i
+            break
+    df = pd.read_excel(path, sheet_name=sheet, header=header_row, engine="openpyxl")
     df.columns = [_snake(str(c)) for c in df.columns]
     df = df.dropna(how="all")
     df = df.loc[:, ~df.columns.str.startswith("unnamed")]
-    print(f"  {path.name}: {len(df)} rows, {len(df.columns)} columns")
+    print(f"  {path.name} (sheet: {sheet!r}): {len(df)} rows, {len(df.columns)} columns")
     return df
 
 

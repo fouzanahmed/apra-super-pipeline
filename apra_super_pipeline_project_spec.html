@@ -1,0 +1,243 @@
+
+<style>
+* { box-sizing: border-box; }
+.proj-header { padding: 20px 0 16px; border-bottom: 0.5px solid var(--color-border-tertiary); margin-bottom: 20px; }
+.proj-title { font-size: 18px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 6px; }
+.proj-sub { font-size: 13px; color: var(--color-text-secondary); margin: 0 0 12px; line-height: 1.5; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; }
+.chip-teal { background: #E1F5EE; color: #0F6E56; }
+.chip-purple { background: #EEEDFE; color: #3C3489; }
+.chip-amber { background: #FAEEDA; color: #633806; }
+.chip-blue { background: #E6F1FB; color: #0C447C; }
+.chip-coral { background: #FAECE7; color: #712B13; }
+.chip-gray { background: #F1EFE8; color: #444441; }
+
+.layer { margin-bottom: 16px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+.layer-header { padding: 10px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.layer-num { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; }
+.layer-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+.layer-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: auto; }
+.layer-body { padding: 12px 14px; }
+.tech-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.tech-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; }
+.tech-name { font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 3px; }
+.tech-desc { font-size: 11px; color: var(--color-text-secondary); line-height: 1.5; margin: 0; }
+.tech-learn { font-size: 11px; color: var(--color-text-tertiary); margin: 4px 0 0; font-style: italic; }
+
+.step-list { margin: 0; padding: 0; list-style: none; }
+.step-list li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; align-items: flex-start; }
+.step-list li:last-child { border-bottom: none; }
+.step-list li strong { color: var(--color-text-primary); font-weight: 500; }
+.step-num { font-size: 11px; font-weight: 500; min-width: 18px; color: var(--color-text-tertiary); margin-top: 1px; }
+
+.section-label { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 8px; }
+.deliverable-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.deliverable { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 12px; flex: 1; min-width: 140px; }
+.deliverable-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px; }
+.deliverable-desc { font-size: 11px; color: var(--color-text-secondary); margin: 0; }
+
+.readme-box { background: var(--color-background-secondary); border-radius: var(--border-radius-md); border-left: 3px solid #1D9E75; border-radius: 0; padding: 12px 14px; margin-top: 14px; font-size: 12px; color: var(--color-text-secondary); line-height: 1.6; }
+.readme-box strong { color: var(--color-text-primary); font-weight: 500; }
+</style>
+
+<h2 class="sr-only">Full project specification for the Australian superannuation analytics pipeline</h2>
+
+<div class="proj-header">
+  <div class="proj-title">Australian Superannuation Analytics Platform</div>
+  <div class="proj-sub">End-to-end data pipeline ingesting APRA's public regulatory data ($4.5T AUM industry) — automated ingestion, dbt transformations, AI-powered querying, and a live Power BI dashboard. Deployed on AWS with Docker and CI/CD.</div>
+  <div class="chip-row">
+    <span class="chip chip-teal">Python</span>
+    <span class="chip chip-teal">dbt</span>
+    <span class="chip chip-teal">Airflow</span>
+    <span class="chip chip-blue">AWS RDS + EC2 + S3</span>
+    <span class="chip chip-blue">Docker</span>
+    <span class="chip chip-purple">Power BI</span>
+    <span class="chip chip-purple">FastAPI</span>
+    <span class="chip chip-amber">GitHub Actions CI/CD</span>
+    <span class="chip chip-coral">OpenAI / Claude API</span>
+    <span class="chip chip-gray">PostgreSQL</span>
+    <span class="chip chip-gray">PySpark</span>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-header">
+    <div class="layer-num chip-teal">1</div>
+    <div class="layer-title">Data source — what you're ingesting</div>
+    <span class="layer-badge chip-teal">Free, public, no API key</span>
+  </div>
+  <div class="layer-body">
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-name">APRA Quarterly MySuper Stats</div>
+        <div class="tech-desc">Per-fund fees, returns, asset allocation by quarter. 8MB Excel, back to 2013. This is your core fact table.</div>
+        <div class="tech-learn">apra.gov.au/quarterly-superannuation-statistics</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-name">APRA Quarterly Fund-Level Stats</div>
+        <div class="tech-desc">Member demographics + investments by asset type per fund. Released June 2024 — very few portfolios use this yet.</div>
+        <div class="tech-learn">apra.gov.au/quarterly-fund-level-statistics</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-name">APRA Annual Fund Bulletin</div>
+        <div class="tech-desc">Long historical view: fees, expenses, membership trends per fund since 2015. Use for trend analysis.</div>
+        <div class="tech-learn">apra.gov.au/annual-superannuation-bulletin</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-header">
+    <div class="layer-num chip-teal">2</div>
+    <div class="layer-title">Ingestion — Python + AWS S3</div>
+    <span class="layer-badge chip-blue">You learn: S3, boto3, pandas</span>
+  </div>
+  <div class="layer-body">
+    <ul class="step-list">
+      <li><span class="step-num">2.1</span><div><strong>Download script</strong> — Python script using <code>requests</code> to pull APRA Excel files. Clean column names (snake_case), fix multi-header rows, validate row counts. ~60 lines.</div></li>
+      <li><span class="step-num">2.2</span><div><strong>Upload to S3</strong> — Push raw Excel files to an S3 bucket (<code>s3://super-pipeline/raw/</code>) using <code>boto3</code>. This is your data lake layer. Keeps a dated archive each run.</div></li>
+      <li><span class="step-num">2.3</span><div><strong>Load to Postgres</strong> — Read from S3, parse with pandas, load to <code>raw.apra_mysuper</code> table on AWS RDS (Postgres). Use upsert logic — idempotent, safe to rerun.</div></li>
+    </ul>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-header">
+    <div class="layer-num chip-teal">3</div>
+    <div class="layer-title">Transformation — dbt on Postgres</div>
+    <span class="layer-badge chip-teal">You learn: dbt, SQL modeling, data testing</span>
+  </div>
+  <div class="layer-body">
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-name">staging/stg_apra_mysuper.sql</div>
+        <div class="tech-desc">Clean raw table: cast types, rename columns, filter nulls. One model, ~20 lines. First dbt model you write.</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-name">mart/fund_performance.sql</div>
+        <div class="tech-desc">1yr/3yr/5yr returns per fund. RANK() among peers. Fee percentile. Window functions — this is interview SQL.</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-name">mart/fee_vs_return.sql</div>
+        <div class="tech-desc">"Value for money" table: high fees + low returns flagged. What financial journalists publish annually.</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-name">mart/member_flow.sql</div>
+        <div class="tech-desc">Net member inflows/outflows per fund per quarter. Which funds are losing members and why.</div>
+      </div>
+    </div>
+    <div style="margin-top: 10px; font-size: 12px; color: var(--color-text-secondary);">Add <strong>dbt tests</strong> on every model: not_null, unique, accepted_values, relationships. This becomes your CI/CD test suite.</div>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-header">
+    <div class="layer-num chip-amber">4</div>
+    <div class="layer-title">Orchestration — Airflow on EC2</div>
+    <span class="layer-badge chip-amber">You learn: DAGs, scheduling, Docker Compose</span>
+  </div>
+  <div class="layer-body">
+    <ul class="step-list">
+      <li><span class="step-num">4.1</span><div><strong>Docker Compose setup</strong> — One <code>docker-compose.yml</code> file spins up Airflow + Postgres locally. Anyone can clone and run. Study Eric's repo for this pattern exactly.</div></li>
+      <li><span class="step-num">4.2</span><div><strong>Weekly DAG</strong> — Every Monday 8am: download APRA files → upload to S3 → load to RDS → run <code>dbt run</code> → run <code>dbt test</code> → send Slack alert on failure.</div></li>
+      <li><span class="step-num">4.3</span><div><strong>Deployed to AWS EC2</strong> — t2.micro free tier. Airflow runs there permanently. This is the "production" environment — not just localhost.</div></li>
+    </ul>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-header">
+    <div class="layer-num chip-purple">5</div>
+    <div class="layer-title">AI layer — NL-to-SQL query API</div>
+    <span class="layer-badge chip-coral">You learn: FastAPI, LLMs, prompt engineering</span>
+  </div>
+  <div class="layer-body">
+    <ul class="step-list">
+      <li><span class="step-num">5.1</span><div><strong>FastAPI backend</strong> — One endpoint: <code>POST /query</code> accepts a plain English question. You already have FastAPI on your CV — this extends it with AI.</div></li>
+      <li><span class="step-num">5.2</span><div><strong>Schema-aware prompt</strong> — Send the question + your dbt mart table schemas to Claude/GPT-4. Prompt: "Given these tables, write a SQL query to answer: {question}". Return the SQL + result as JSON.</div></li>
+      <li><span class="step-num">5.3</span><div><strong>Example queries it handles</strong> — "Which fund had the best 5yr return under 0.5% fees?" / "Which 3 funds lost the most members last quarter?" / "Compare AustralianSuper vs Hostplus fees since 2020."</div></li>
+    </ul>
+    <div style="margin-top: 10px; font-size: 12px; color: var(--color-text-secondary);">This is the AI component. It's genuine text-to-SQL, not a notebook — and it's built on real data, which makes it demonstrable in interviews.</div>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-header">
+    <div class="layer-num chip-purple">6</div>
+    <div class="layer-title">Visualisation — Power BI connected to RDS</div>
+    <span class="layer-badge chip-purple">You learn: DirectQuery, DAX basics</span>
+  </div>
+  <div class="layer-body">
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-name">Page 1: Fund rankings</div>
+        <div class="tech-desc">Bar chart: top 20 funds by 5yr return. Slicer by fund type (industry/retail/public sector). This is page 1.</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-name">Page 2: Fee vs return scatter</div>
+        <div class="tech-desc">X = admin fees %, Y = 1yr return. Quadrant labels: "best value", "worst value". Every fund is a dot.</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-name">Page 3: Member flow trends</div>
+        <div class="tech-desc">Line chart: net member inflows per fund over 8 quarters. Which funds are growing vs bleeding members.</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-name">Connection method</div>
+        <div class="tech-desc">DirectQuery from Power BI Desktop to AWS RDS via ODBC. Always live data — not an Excel import.</div>
+      </div>
+    </div>
+    <div style="margin-top: 10px; font-size: 12px; color: var(--color-text-secondary);"><strong>Publish to Power BI Service</strong> (free for individuals) so you have a shareable link — not just a screenshot. This is the portfolio-ready output.</div>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-header">
+    <div class="layer-num chip-amber">7</div>
+    <div class="layer-title">CI/CD — GitHub Actions</div>
+    <span class="layer-badge chip-amber">You learn: YAML workflows, automated testing</span>
+  </div>
+  <div class="layer-body">
+    <ul class="step-list">
+      <li><span class="step-num">7.1</span><div><strong>PR check workflow</strong> — On every pull request: run <code>ruff</code> Python linter + <code>dbt compile</code> to validate SQL. Fails the PR if anything breaks. File: <code>.github/workflows/pr_check.yml</code>.</div></li>
+      <li><span class="step-num">7.2</span><div><strong>dbt test workflow</strong> — On merge to main: run <code>dbt test</code> against a test database. Catches data quality regressions. File: <code>.github/workflows/dbt_test.yml</code>.</div></li>
+      <li><span class="step-num">7.3</span><div><strong>Docker build check</strong> — Confirm the Docker image builds cleanly on every push. Prevents broken deployments. ~10 lines of YAML.</div></li>
+    </ul>
+    <div style="margin-top: 10px; font-size: 12px; color: var(--color-text-secondary);">Total CI/CD code: ~60 lines of YAML across 3 files. The GitHub Actions badge on your README (green checkmark) is visible to every recruiter who visits.</div>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-header">
+    <div class="layer-num chip-gray">8</div>
+    <div class="layer-title">PySpark bonus layer (India market)</div>
+    <span class="layer-badge chip-gray">Add after core is done</span>
+  </div>
+  <div class="layer-body">
+    <div style="font-size: 12px; color: var(--color-text-secondary); line-height: 1.6;">Write a PySpark script (<code>spark/quarterly_aggregation.py</code>) that reads the raw APRA parquet files from S3 and produces the same fund-level aggregations as dbt — but using Spark DataFrames. Run it locally with <code>pyspark</code> or on an EMR Serverless job. The output is intentionally redundant; the point is to show Spark on your CV with real code. Add it to your Airflow DAG as an optional parallel branch.</div>
+  </div>
+</div>
+
+<div style="margin-top: 20px;">
+  <div class="section-label">GitHub README deliverables — what interviewers see</div>
+  <div class="deliverable-row">
+    <div class="deliverable">
+      <div class="deliverable-title">Architecture diagram</div>
+      <div class="deliverable-desc">One image showing S3 → RDS → dbt → Airflow → Power BI + FastAPI</div>
+    </div>
+    <div class="deliverable">
+      <div class="deliverable-title">Power BI live link</div>
+      <div class="deliverable-desc">Published dashboard anyone can view without login</div>
+    </div>
+    <div class="deliverable">
+      <div class="deliverable-title">CI badge</div>
+      <div class="deliverable-desc">Green "passing" badge from GitHub Actions at top of README</div>
+    </div>
+    <div class="deliverable">
+      <div class="deliverable-title">docker-compose up</div>
+      <div class="deliverable-desc">One command runs the entire stack locally</div>
+    </div>
+  </div>
+  <div class="readme-box"><strong>Resume line (AU):</strong> "Built end-to-end regulatory analytics pipeline on APRA superannuation data ($4.5T AUM industry) — dbt + Airflow + AWS + Power BI with AI-powered natural language querying. Deployed via Docker with GitHub Actions CI/CD."<br><br><strong>Resume line (India/GCC):</strong> "End-to-end financial regulatory data pipeline processing government-published industry statistics — Python, dbt, PySpark, AWS S3/RDS, Airflow, FastAPI, Power BI. Full CI/CD with GitHub Actions and Docker."</div>
+</div>
