@@ -5,9 +5,9 @@ with source as (
 cleaned as (
     select
         -- identifiers
-        trim(fund_name)                                    as fund_name,
-        trim(abn)                                          as abn,
-        trim(product_name)                                 as product_name,
+        trim(cast(fund_name    as text))                   as fund_name,
+        trim(cast(abn         as text))                   as abn,
+        trim(cast(product_name as text))                  as product_name,
 
         -- time dimension
         cast(quarter_year as date)                         as quarter_date,
@@ -16,8 +16,6 @@ cleaned as (
         cast(return_1yr  as numeric(10, 6))                as return_1yr,
         cast(return_3yr  as numeric(10, 6))                as return_3yr,
         cast(return_5yr  as numeric(10, 6))                as return_5yr,
-        cast(return_7yr  as numeric(10, 6))                as return_7yr,
-        cast(return_10yr as numeric(10, 6))                as return_10yr,
 
         -- fees
         cast(investment_fee_pct as numeric(10, 6))         as investment_fee_pct,
@@ -37,7 +35,7 @@ cleaned as (
 
     from source
     where fund_name is not null
-      and quarter_date is not null
+      and quarter_year is not null
 )
 
 select * from cleaned

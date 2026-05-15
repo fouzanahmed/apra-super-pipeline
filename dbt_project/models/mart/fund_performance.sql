@@ -12,8 +12,6 @@ ranked as (
         return_1yr,
         return_3yr,
         return_5yr,
-        return_7yr,
-        return_10yr,
         total_fee_pct,
         net_assets_m,
         member_accounts,
