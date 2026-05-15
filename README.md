@@ -2,7 +2,6 @@
 
 End-to-end data pipeline on APRA's public regulatory data ($4.5T AUM industry) — automated ingestion, dbt transformations, AI-powered querying, and a live Power BI dashboard. Deployed on AWS with Docker and CI/CD.
 
-![CI](https://github.com/fouzanahmed/apra-super-pipeline/actions/workflows/dbt_test.yml/badge.svg)
 
 ## Stack
 
