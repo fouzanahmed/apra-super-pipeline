@@ -3,7 +3,6 @@ FastAPI NL-to-SQL service.
 POST /query  {"question": "Which fund had the best 5yr return under 0.5% fees?"}
 """
 import os
-import json
 import anthropic
 import psycopg2
 from fastapi import FastAPI, HTTPException

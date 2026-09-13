@@ -2,7 +2,6 @@
 Download APRA superannuation Excel files from the public website.
 Run: python -m ingestion.download_apra
 """
-import os
 import re
 import requests
 import pandas as pd
