@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 RAW_DIR = Path("data/raw")
-RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 APRA_SOURCES = {
     "mysuper_quarterly": {
@@ -35,6 +34,7 @@ def _snake(name: str) -> str:
 
 
 def download_file(key: str, source: dict) -> Path:
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
     dest = RAW_DIR / source["filename"]
     print(f"Downloading {key} -> {dest}")
     r = requests.get(source["url"], timeout=120)
