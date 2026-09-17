@@ -3,9 +3,10 @@ Upload raw APRA Excel files to S3 (data lake layer).
 Keeps a dated archive: s3://super-pipeline/raw/YYYY-MM-DD/filename.xlsx
 """
 import os
-import boto3
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
+
+import boto3
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,7 +16,7 @@ RAW_DIR = Path("data/raw")
 
 
 def upload_raw_files(run_date: date | None = None) -> list[str]:
-    run_date = run_date or date.today()
+    run_date = run_date or datetime.now(tz=timezone.utc).date()
     prefix = f"raw/{run_date.isoformat()}"
     s3 = boto3.client("s3")
     uploaded = []

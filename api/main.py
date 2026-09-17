@@ -3,11 +3,12 @@ FastAPI NL-to-SQL service.
 POST /query  {"question": "Which fund had the best 5yr return under 0.5% fees?"}
 """
 import os
+
 import anthropic
 import psycopg2
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -60,7 +61,7 @@ class QueryResponse(BaseModel):
 def _db_conn():
     return psycopg2.connect(
         host=os.environ["POSTGRES_HOST"],
-        port=int(os.environ.get("POSTGRES_PORT", 5432)),
+        port=int(os.environ.get("POSTGRES_PORT", "5432")),
         dbname=os.environ["POSTGRES_DB"],
         user=os.environ["POSTGRES_USER"],
         password=os.environ["POSTGRES_PASSWORD"],
@@ -98,7 +99,7 @@ def query(req: QueryRequest):
 
     try:
         results = _run_sql(sql)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - arbitrary generated SQL can raise any psycopg2/driver error
         raise HTTPException(status_code=500, detail=f"SQL execution failed: {e}\n\nGenerated SQL:\n{sql}")
 
     return QueryResponse(question=req.question, sql=sql, results=results, row_count=len(results))

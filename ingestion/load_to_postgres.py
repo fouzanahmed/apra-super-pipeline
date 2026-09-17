@@ -10,14 +10,15 @@ apra_mysuper_quarterly.xlsx  ->  raw.apra_mysuper
 apra_fund_level_quarterly.xlsx  ->  raw.apra_fund_level  (loaded as-is for now)
 apra_annual_bulletin.xlsx       ->  raw.apra_annual_bulletin (loaded as-is for now)
 """
-import os
 import io
+import os
 import re
+from datetime import date, datetime, timezone
+
 import boto3
 import pandas as pd
-from datetime import date
-from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
 
 load_dotenv()
 
@@ -116,7 +117,7 @@ def _read_from_s3(run_date: date, filename: str) -> pd.DataFrame:
 
 
 def load_all(run_date: date | None = None) -> None:
-    run_date = run_date or date.today()
+    run_date = run_date or datetime.now(tz=timezone.utc).date()
     engine = create_engine(DB_URL)
 
     with engine.begin() as conn:
