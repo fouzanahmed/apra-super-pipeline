@@ -29,5 +29,6 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
         run: |
+          mkdir -p ~/.dbt
           cp dbt_project/profiles.yml.example ~/.dbt/profiles.yml
           cd dbt_project && dbt compile --target dev

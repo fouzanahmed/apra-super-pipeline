@@ -20,7 +20,9 @@ jobs:
         run: pip install dbt-postgres
 
       - name: Set up dbt profiles
-        run: cp dbt_project/profiles.yml.example ~/.dbt/profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cp dbt_project/profiles.yml.example ~/.dbt/profiles.yml
 
       - name: dbt run (prod target)
         env:
@@ -43,4 +45,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build API Docker image
-        run: docker build ./api -t super-pipeline-api:latest
+        run: docker build -f api/Dockerfile -t super-pipeline-api:latest .

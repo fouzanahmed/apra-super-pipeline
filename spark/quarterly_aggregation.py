@@ -4,6 +4,7 @@ Run locally:  spark-submit spark/quarterly_aggregation.py
 Run on EMR:   aws emr-serverless start-job-run ... (see README)
 """
 import os
+
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
