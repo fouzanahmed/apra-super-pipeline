@@ -3,9 +3,18 @@ version: 2
 models:
   - name: fund_performance
     description: "Per-fund returns ranked by peer group and overall, with fee percentile."
+    tests:
+      - unique:
+          arguments:
+            column_name: "abn || '-' || cast(quarter_date as text)"
     columns:
       - name: abn
-        tests: [not_null]
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_apra_mysuper')
+                field: abn
       - name: quarter_date
         tests: [not_null]
       - name: rank_5yr_overall
@@ -13,7 +22,20 @@ models:
 
   - name: fee_vs_return
     description: "Latest quarter fee vs 1yr return with value quadrant classification."
+    tests:
+      - unique:
+          arguments:
+            column_name: "abn || '-' || cast(quarter_date as text)"
     columns:
+      - name: abn
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_apra_mysuper')
+                field: abn
+      - name: quarter_date
+        tests: [not_null]
       - name: value_quadrant
         tests:
           - accepted_values:
@@ -21,8 +43,17 @@ models:
 
   - name: member_flow
     description: "Quarter-on-quarter member account changes and rolling annual flow."
+    tests:
+      - unique:
+          arguments:
+            column_name: "abn || '-' || cast(quarter_date as text)"
     columns:
       - name: abn
-        tests: [not_null]
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_apra_mysuper')
+                field: abn
       - name: quarter_date
         tests: [not_null]
