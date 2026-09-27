@@ -57,6 +57,11 @@ class QueryResponse(BaseModel):
     row_count: int
 
 
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+
+
 def _db_conn():
     return psycopg2.connect(
         host=os.environ["POSTGRES_HOST"],
@@ -104,6 +109,6 @@ def query(req: QueryRequest):
     return QueryResponse(question=req.question, sql=sql, results=results, row_count=len(results))
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 def health():
-    return {"status": "ok"}
+    return HealthResponse(status="ok", version=app.version)
