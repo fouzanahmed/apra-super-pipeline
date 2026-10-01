@@ -6,6 +6,7 @@ with base as (
 ranked as (
     select
         fund_name,
+        product_name,
         abn,
         fund_type,
         quarter_date,

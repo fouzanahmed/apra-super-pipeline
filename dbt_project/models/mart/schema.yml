@@ -1,28 +1,114 @@
 version: 2
 
+# Descriptions are persisted to Postgres as table/column comments (persist_docs in
+# dbt_project.yml). The query API reads them, so they are written for someone who
+# can only see this text. Returns and fees are decimals (0.0852 = 8.52%).
+
 models:
   - name: fund_performance
-    description: "Per-fund returns ranked by peer group and overall, with fee percentile."
+    description: >
+      Per-fund returns ranked by peer group and overall, with fee percentile.
+      One row per MySuper product per quarter (a fund with several products appears
+      several times per quarter). Only rows with a reported 5-year return.
     columns:
+      - name: fund_name
+        description: "Superannuation fund name as published by APRA."
+      - name: product_name
+        description: "MySuper product name. Together with abn and quarter_date, identifies a row."
+        tests: [not_null]
       - name: abn
+        description: "Fund ABN (Australian Business Number); stable fund identifier."
         tests: [not_null]
+      - name: fund_type
+        description: "One of 'industry', 'retail', 'public sector', 'corporate'."
       - name: quarter_date
+        description: "Last day of the reporting quarter."
         tests: [not_null]
+      - name: return_1yr
+        description: "One-year net return for the representative member, annualised."
+      - name: return_3yr
+        description: "Three-year net return for the representative member, annualised."
+      - name: return_5yr
+        description: "Five-year net return for the representative member, annualised."
+      - name: total_fee_pct
+        description: "Total fees and costs for the representative member, as a share of balance."
+      - name: net_assets_m
+        description: "Total assets of the MySuper product, in $ millions."
+      - name: member_accounts
+        description: "Number of member accounts. Mostly NULL (source only covers a few products up to 2022)."
+      - name: rank_5yr_in_type
+        description: "Rank by return_5yr within the same quarter and fund_type; 1 = highest return, ties share a rank."
       - name: rank_5yr_overall
+        description: "Rank by return_5yr across all funds in the same quarter; 1 = highest return, ties share a rank."
         tests: [not_null]
+      - name: fee_percentile
+        description: "Percent rank of total_fee_pct within the quarter: 0 = cheapest, 1 = most expensive."
+      - name: total_funds_that_quarter
+        description: "Number of rows (products) in this table for the same quarter."
 
   - name: fee_vs_return
-    description: "Latest quarter fee vs 1yr return with value quadrant classification."
+    description: >
+      Value-for-money snapshot for the latest quarter only: each product's total fee and
+      1-year return compared with the medians across all products that quarter. For
+      questions about best or worst value, filter on value_quadrant.
     columns:
+      - name: fund_name
+        description: "Superannuation fund name as published by APRA."
+      - name: product_name
+        description: "MySuper product name; a fund can have several products (e.g. HESTA)."
+        tests: [not_null]
+      - name: abn
+        description: "Fund ABN (Australian Business Number); stable fund identifier."
+      - name: fund_type
+        description: "One of 'industry', 'retail', 'public sector', 'corporate'."
+      - name: quarter_date
+        description: "Last day of the reporting quarter (the same latest quarter on every row)."
+      - name: total_fee_pct
+        description: "Total fees and costs for the representative member, as a share of balance."
+      - name: return_1yr
+        description: "One-year net return for the representative member. This is the return used for value_quadrant."
+      - name: return_5yr
+        description: "Five-year net return, annualised. Informational only; not used for value_quadrant, and not comparable with median_return."
+      - name: net_assets_m
+        description: "Total assets of the MySuper product, in $ millions."
+      - name: median_fee
+        description: "Median total_fee_pct across all rows in this table (same value on every row)."
+      - name: median_return
+        description: "Median of return_1yr (the ONE-year return, not 5-year) across all rows in this table (same value on every row)."
       - name: value_quadrant
+        description: >
+          'best_value' = fee <= median_fee and return_1yr >= median_return;
+          'expensive_performer' = fee > median_fee and return_1yr >= median_return;
+          'cheap_underperformer' = fee <= median_fee and return_1yr < median_return;
+          'worst_value' = fee > median_fee and return_1yr < median_return.
         tests:
           - accepted_values:
               values: ["best_value", "expensive_performer", "cheap_underperformer", "worst_value"]
 
   - name: member_flow
-    description: "Quarter-on-quarter member account changes and rolling annual flow."
+    description: >
+      Quarter-on-quarter member account changes and rolling annual flow per fund.
+      Currently empty: the source file has almost no member-account data.
     columns:
+      - name: fund_name
+        description: "Superannuation fund name as published by APRA."
       - name: abn
+        description: "Fund ABN (Australian Business Number); stable fund identifier."
         tests: [not_null]
+      - name: fund_type
+        description: "One of 'industry', 'retail', 'public sector', 'corporate'."
       - name: quarter_date
+        description: "Last day of the reporting quarter."
         tests: [not_null]
+      - name: member_accounts
+        description: "Number of member accounts at quarter end."
+      - name: net_assets_m
+        description: "Total assets, in $ millions."
+      - name: member_net_change
+        description: "member_accounts minus the previous quarter's member_accounts for the same ABN."
+      - name: member_growth_pct
+        description: "member_net_change as a percentage of the previous quarter (already x100: 2.5 = 2.5%)."
+      - name: asset_net_change_m
+        description: "Change in net_assets_m from the previous quarter, in $ millions."
+      - name: rolling_annual_member_change
+        description: "Sum of member_net_change over this and the previous 3 quarters."
