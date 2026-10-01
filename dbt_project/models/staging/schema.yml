@@ -11,6 +11,10 @@ sources:
 models:
   - name: stg_apra_mysuper
     description: "Cleaned and typed MySuper fund-level quarterly stats from APRA."
+    tests:
+      - unique:
+          arguments:
+            column_name: "abn || '-' || product_name || '-' || cast(quarter_date as text)"
     columns:
       - name: abn
         tests: [not_null]
