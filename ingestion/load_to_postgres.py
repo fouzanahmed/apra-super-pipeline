@@ -17,16 +17,17 @@ apra_annual_bulletin.xlsx       ->  raw.apra_annual_bulletin (loaded as-is for n
 Run:  python -m ingestion.load_to_postgres            # read today's files from S3
       python -m ingestion.load_to_postgres --local    # read from data/raw/ (no AWS needed)
 """
-import os
-import io
-import re
 import argparse
+import io
+import os
+import re
+from datetime import date, datetime, timezone
+from pathlib import Path
+
 import boto3
 import pandas as pd
-from datetime import date
-from pathlib import Path
-from sqlalchemy import create_engine, inspect, text
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, inspect, text
 
 load_dotenv()
 
@@ -151,7 +152,7 @@ def _read_source(run_date: date, filename: str, local: bool = False) -> pd.DataF
 
 
 def load_all(run_date: date | None = None, local: bool = False) -> None:
-    run_date = run_date or date.today()
+    run_date = run_date or datetime.now(timezone.utc).date()  # UTC so upload and load agree on any machine
     engine = create_engine(DB_URL)
 
     with engine.begin() as conn:

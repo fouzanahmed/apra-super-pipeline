@@ -16,9 +16,9 @@ from functools import lru_cache
 
 import anthropic
 import psycopg2
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -50,7 +50,7 @@ class QueryResponse(BaseModel):
 def _db_conn():
     return psycopg2.connect(
         host=os.environ["POSTGRES_HOST"],
-        port=int(os.environ.get("POSTGRES_PORT", 5432)),
+        port=int(os.environ.get("POSTGRES_PORT", "5432")),
         dbname=os.environ["POSTGRES_DB"],
         user=os.environ["POSTGRES_USER"],
         password=os.environ["POSTGRES_PASSWORD"],
@@ -131,7 +131,7 @@ def _ask_claude_code(question: str) -> str:
         result = subprocess.run(
             [cli, "-p", "--model", "sonnet", "--tools", ""],
             input=prompt, capture_output=True, text=True, encoding="utf-8",
-            timeout=180, cwd=tempfile.gettempdir(),
+            timeout=180, cwd=tempfile.gettempdir(), check=False,
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Claude Code CLI timed out.")
