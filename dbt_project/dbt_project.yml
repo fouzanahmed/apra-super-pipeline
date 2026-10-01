@@ -19,3 +19,7 @@ models:
     mart:
       +schema: mart
       +materialized: table
+      # Write schema.yml descriptions into Postgres comments; the query API sends them to Claude.
+      +persist_docs:
+        relation: true
+        columns: true

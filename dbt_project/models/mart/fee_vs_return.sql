@@ -16,6 +16,7 @@ medians as (
 classified as (
     select
         l.fund_name,
+        l.product_name,
         l.abn,
         l.fund_type,
         l.quarter_date,

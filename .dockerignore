@@ -1,0 +1,10 @@
+.git
+.env
+*.env
+*.xlsx
+data/
+dbt_project/target/
+dbt_project/logs/
+**/__pycache__
+.ruff_cache
+.claude
