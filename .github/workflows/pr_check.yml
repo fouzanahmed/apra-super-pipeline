@@ -36,12 +36,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Pinned so CI and local lint the same way (unpinned ruff picked up new default rules).
+      # Pinned versions (ruff, dbt) so CI and local behave the same; unpinned ruff
+      # once picked up new default rules and failed the PR.
       - name: Install dependencies
-        run: pip install ruff==0.16.9 -r requirements-dbt.txt
+        run: pip install -r requirements-local.txt -r requirements-dbt.txt
 
       - name: Lint Python (ruff)
-        run: ruff check ingestion/ api/ spark/
+        run: ruff check ingestion/ api/ spark/ tests/
+
+      - name: Unit tests (pytest)
+        run: pytest -q
 
       - name: dbt compile (validates SQL without running)
         run: |

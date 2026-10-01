@@ -1,7 +1,7 @@
 # Interview prep: APRA Superannuation Pipeline
 
 What I built, what went wrong, how I found and fixed it, and what I'd say about it.
-Every number here comes from running the pipeline locally (Sep 2026 rebuild).
+Every number here comes from running the pipeline locally (Sep–Oct 2026 rebuild).
 
 ---
 
@@ -121,7 +121,24 @@ Format for each: **symptom → root cause → fix → lesson.** Pick 2–3 for "
 - I created a read-only `powerbi_reader` role. Plain `GRANT SELECT` would vanish, because dbt drops and recreates tables on every run. So I used `ALTER DEFAULT PRIVILEGES`. I verified that reads work and a `DELETE` gets "permission denied".
 - **Lesson:** Least privilege, and know how your tool (dbt) recreates objects.
 
-### 3.15 Analytical caveats I'd raise myself
+### 3.15 CI failed on code that passed locally: unpinned dependencies ⭐
+- **Symptom:** The PR's lint job failed with 9 errors, including in files I never touched.
+- **Root cause:** CI ran `pip install ruff` (latest, 0.16.9), but locally I had 0.5.0, and newer ruff checks more rules by default. The same thing was waiting in dbt: pinning only `dbt-postgres` let pip pick a **release candidate** of `dbt-core` (2.0.0rc8).
+- **Fix:** Pin every tool (ruff 0.16.9, dbt-core 1.12.5, dbt-postgres 1.11.0). Resolving them together exposed a hidden conflict (dbt needs `python-dotenv>=1.2`), which I fixed too. I rehearsed the whole CI job in a clean virtual environment before pushing.
+- **Also:** CI's `dbt compile` pointed at my deleted RDS. It now uses a throwaway Postgres **service container**, so CI needs no cloud database and no secrets.
+- **Lesson:** "Works on my machine" is usually a version difference. Pin versions, and make CI self-contained.
+
+### 3.16 A merge silently undid my work
+- GitHub's "Update branch" merged `main` into my PR, and the conflict resolution kept `main`'s side of `schema.yml`. That **deleted the column descriptions** that fixed the AI's "worst value" bug, with no error anywhere.
+- **Fix:** I reviewed the merge diff file by file and restored the descriptions alongside the new tests.
+- **Lesson:** Always read the diff after a merge, especially for config and metadata files, where nothing crashes when content disappears.
+
+### 3.17 Tests that locked in a bug, and tests with the wrong grain
+- A unit test from an earlier PR asserted the join **returns NULL** ("known limitation"). It encoded bug 3.1 as expected behaviour. After my fix, I flipped it into a regression test that asserts the match succeeds.
+- New dbt `unique` tests assumed one row per fund per quarter. The real grain is per **product**: 23 duplicates in `fund_performance` and 1 (HESTA) in `fee_vs_return`. I corrected them to `abn + product_name + quarter_date`. dbt now runs 21 tests, all passing.
+- **Lesson:** A test is only as right as its assumption about the grain. When a test documents a bug, fix the bug and flip the test.
+
+### 3.18 Analytical caveats I'd raise myself
 - **1-year window is noisy:** Hostplus is `worst_value` on 1-year numbers despite a top 5-year return (6.38%).
 - **Ties at the median:** Rei Super's fee is *exactly* the 0.24% median, and OneSuper sits exactly at both medians. `<=` vs `<` flips their labels. With only 35 products, the labels are fragile at the edges.
 - **Simple vs asset-weighted averages:** a $0.2bn fund shouldn't count the same as a $200bn fund for "the average fee". Hence the `Asset-weighted Fee` measure in Power BI.
@@ -146,7 +163,7 @@ Format for each: **symptom → root cause → fix → lesson.** Pick 2–3 for "
 ## 5. dbt and Power BI concepts
 
 - **Staging views vs mart tables:** staging is cheap and always current; marts are stored as tables for fast dashboard and API reads.
-- **dbt tests:** 12 passing (`not_null`, `accepted_values`). *Gap to mention:* no `unique` test on the grain yet (`abn + product_name + quarter_date`).
+- **dbt tests:** 21 passing: `not_null`, `accepted_values`, `relationships` (marts → staging), and `unique` on the grain (`abn + product_name + quarter_date`).
 - **`persist_docs`:** writes schema.yml descriptions into the database as comments.
 - **Import vs DirectQuery:** Import copies the data into the report (fast, offline). DirectQuery asks the database on every click (always live, but slower and puts load on the database). I used Import locally; DirectQuery would make sense against RDS.
 - **Calculated column vs measure:** a column is computed per row at load time (`Fund Label`); a measure is computed for whatever is currently filtered (`Avg 5yr Return`).
@@ -164,20 +181,21 @@ Format for each: **symptom → root cause → fix → lesson.** Pick 2–3 for "
 | Median fee / median 1-year return, Sep 2023 | 0.24% / 8.93% |
 | Top 5-year return, Sep 2023 | Meat Industry Employees Super 6.39%, Hostplus 6.38% |
 | AustralianSuper average total fee | 0.225% (2020) → 0.183% (2023) |
-| dbt | 4 models, 12 tests passing |
+| dbt | 4 models, 21 tests passing |
+| pytest (ingestion) | 15 tests passing |
 
 ---
 
 ## 7. Honest status (don't overclaim)
 
-**Working and verified locally:** Excel → Postgres load, dbt models and tests, the query API (tested with real questions, plus the safety tests), the Docker image build, and the read-only Power BI user.
+**Working and verified locally:** Excel → Postgres load, dbt models and tests, pytest unit tests, the query API (tested with real questions, plus the safety tests), the Docker image build, the read-only Power BI user, and the full CI job rehearsed in a clean environment.
 
 **Built, but not run in this rebuild:** the S3 upload path, the Airflow DAG, and the PySpark script.
 
 **Not done yet:**
 - Power BI report (guide written in `docs/power_bi_guide.md`).
 - Member-flow data.
-- CI fixes: the workflow copies to `~/.dbt` without creating it, and its secrets point at the deleted RDS.
+- The `dbt_test.yml` workflow (on merge to `main`) still points at the deleted RDS; only the PR check is self-contained so far.
 - The Airflow image lacks dbt.
 - Spark reads parquet that nothing writes.
 - The fund-level and annual-bulletin files currently load only their Cover sheet.

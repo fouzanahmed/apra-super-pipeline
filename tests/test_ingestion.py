@@ -21,9 +21,9 @@ os.environ.setdefault("POSTGRES_DB", "testdb")
 os.environ.setdefault("POSTGRES_USER", "testuser")
 os.environ.setdefault("POSTGRES_PASSWORD", "testpass")
 
+from ingestion import upload_to_s3
 from ingestion.download_apra import _snake, clean_excel
 from ingestion.load_to_postgres import _norm, _read_mysuper
-from ingestion import upload_to_s3
 
 
 def _make_workbook(sheets: dict) -> bytes:
@@ -139,14 +139,14 @@ def _mysuper_workbook(abn_2a="12345678901", abn_1a="12345678901", abn_4="1234567
         ["Table 1a", None, None],
         [None, None, None],
         [None, None, None],
-        ["Period*", "Fund ABN", "Total assets"],
-        ["Sep-2025", abn_1a, 1000.0],
+        ["Period*", "MySuper product name", "Fund ABN", "Total assets"],
+        ["Sep-2025", "Balanced", abn_1a, 1000.0],
     ]
     table_4 = [
         ["Table 4", None, None],
         [None, None, None],
-        ["Period *", "Fund ABN", "Member accounts"],
-        ["Sep-2025", abn_4, 500],
+        ["Period *", "MySuper product name", "Fund ABN", "Member accounts"],
+        ["Sep-2025", "Balanced", abn_4, 500],
     ]
     return _make_workbook({"Table 2a": table_2a, "Table 1a": table_1a, "Table 4": table_4})
 
@@ -175,13 +175,12 @@ def test_read_mysuper_merges_across_dtype_mismatched_abn_columns():
     assert df.iloc[0]["net_assets_m"] == 1000.0
 
 
-def test_read_mysuper_silently_drops_match_when_units_row_poisons_abn_dtype():
-    # Known limitation: if Table 2a's units row leaves the ABN cell truly blank
-    # (rather than a placeholder like "-"), pandas infers the whole ABN column
-    # as float64 because of the blank/NaN cell. After the code's `.astype(str)`
-    # normalisation, "12345678901" becomes "12345678901.0", which no longer
-    # matches Table 1a/4's clean string keys. The merge doesn't raise -- it just
-    # silently produces NaN for net_assets_m / member_accounts.
+def test_read_mysuper_matches_even_when_units_row_makes_abn_float():
+    # Regression test. If Table 2a's units row leaves the ABN cell truly blank,
+    # pandas infers the ABN column as float64, so str() gives "12345678901.0".
+    # The old parser compared these strings and silently produced NaN for
+    # net_assets_m / member_accounts. _clean_keys now normalises every sheet's
+    # ABN to an integer string before joining, so the match succeeds.
     table_2a = [
         ["Table 2a"] + [None] * 10,
         [None] * 11,
@@ -201,22 +200,51 @@ def test_read_mysuper_silently_drops_match_when_units_row_poisons_abn_dtype():
         ["Table 1a", None, None],
         [None, None, None],
         [None, None, None],
-        ["Period*", "Fund ABN", "Total assets"],
-        ["Sep-2025", "12345678901", 1000.0],
+        ["Period*", "MySuper product name", "Fund ABN", "Total assets"],
+        ["Sep-2025", "Balanced", "12345678901", 1000.0],
     ]
     table_4 = [
         ["Table 4", None, None],
         [None, None, None],
-        ["Period *", "Fund ABN", "Member accounts"],
-        ["Sep-2025", "12345678901", 500],
+        ["Period *", "MySuper product name", "Fund ABN", "Member accounts"],
+        ["Sep-2025", "Balanced", "12345678901", 500],
     ]
     raw_bytes = _make_workbook({"Table 2a": table_2a, "Table 1a": table_1a, "Table 4": table_4})
 
     df = _read_mysuper(raw_bytes)
 
     assert len(df) == 1
-    assert pd.isna(df.iloc[0]["net_assets_m"])
-    assert pd.isna(df.iloc[0]["member_accounts"])
+    assert df.iloc[0]["net_assets_m"] == 1000.0
+    assert df.iloc[0]["member_accounts"] == 500
+
+
+def test_read_mysuper_keeps_assets_per_product_for_multi_product_funds():
+    # Regression test. One fund (ABN) can run several MySuper products. Assets must
+    # join per product, not be summed per fund and copied onto every product row.
+    header_2a = ["Period*", "MySuper product name", "Fund name", "Fund ABN", "Fund type",
+                 "One-year net return (rep member) - Annualised",
+                 "Three year net return (rep member) - Annualised",
+                 "Five year net return (rep member) - Annualised",
+                 "Investment fees (rep member)", "Administration fees and costs (rep member)",
+                 "Total fees and costs (rep member)"]
+    table_2a = [["Table 2a"] + [None] * 10, [None] * 11, [None] * 11, [None] * 11, header_2a,
+                ["%", "-", "-", "-", "-", "%", "%", "%", "%", "%", "%"],
+                ["Sep-2025", "Main", "Big Fund", "11111111111", "Industry", 8, 7, 6, 0.1, 0.1, 0.2],
+                ["Sep-2025", "Staff", "Big Fund", "11111111111", "Industry", 9, 8, 7, 0.1, 0.1, 0.2]]
+    table_1a = [["Table 1a", None, None, None], [None] * 4, [None] * 4,
+                ["Period*", "MySuper product name", "Fund ABN", "Total assets"],
+                ["Sep-2025", "Main", "11111111111", 900.0],
+                ["Sep-2025", "Staff", "11111111111", 100.0]]
+    table_4 = [["Table 4", None, None, None], [None] * 4,
+               ["Period *", "MySuper product name", "Fund ABN", "Member accounts"]]
+    raw_bytes = _make_workbook({"Table 2a": table_2a, "Table 1a": table_1a, "Table 4": table_4})
+
+    df = _read_mysuper(raw_bytes).set_index("product_name")
+
+    assert df.loc["Main", "net_assets_m"] == 900.0
+    assert df.loc["Staff", "net_assets_m"] == 100.0
+    # percentages are converted to decimals
+    assert df.loc["Main", "return_1yr"] == pytest.approx(0.08)
 
 
 def test_read_mysuper_raises_on_header_mismatch_in_asset_table():
@@ -241,14 +269,14 @@ def test_read_mysuper_raises_on_header_mismatch_in_asset_table():
         ["Table 1a", None, None],
         [None, None, None],
         [None, None, None],
-        ["Period*", "Fund Identifier", "Total assets"],
-        ["Sep-2025", "12345678901", 1000.0],
+        ["Period*", "MySuper product name", "Fund Identifier", "Total assets"],
+        ["Sep-2025", "Balanced", "12345678901", 1000.0],
     ]
     table_4 = [
         ["Table 4", None, None],
         [None, None, None],
-        ["Period *", "Fund ABN", "Member accounts"],
-        ["Sep-2025", "12345678901", 500],
+        ["Period *", "MySuper product name", "Fund ABN", "Member accounts"],
+        ["Sep-2025", "Balanced", "12345678901", 500],
     ]
     raw_bytes = _make_workbook({
         "Table 2a": table_2a, "Table 1a": table_1a_bad_header, "Table 4": table_4,
@@ -280,7 +308,7 @@ def test_upload_raw_files_uploads_only_xlsx_files(tmp_path, monkeypatch):
 
     assert uploaded == ["raw/2026-01-15/apra_mysuper_quarterly.xlsx"]
     assert len(fake_client.calls) == 1
-    filename, bucket, key = fake_client.calls[0]
+    _filename, bucket, key = fake_client.calls[0]
     assert bucket == "test-bucket"
     assert key == "raw/2026-01-15/apra_mysuper_quarterly.xlsx"
 
