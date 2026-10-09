@@ -21,8 +21,14 @@ os.environ.setdefault("POSTGRES_DB", "testdb")
 os.environ.setdefault("POSTGRES_USER", "testuser")
 os.environ.setdefault("POSTGRES_PASSWORD", "testpass")
 
-from ingestion import upload_to_s3
-from ingestion.download_apra import _snake, clean_excel
+from ingestion import download_apra, upload_to_s3
+from ingestion.download_apra import (
+    EXPECTED_SCHEMAS,
+    SchemaValidationError,
+    _snake,
+    clean_excel,
+    validate_workbook,
+)
 from ingestion.load_to_postgres import _norm, _read_mysuper
 
 
@@ -284,6 +290,101 @@ def test_read_mysuper_raises_on_header_mismatch_in_asset_table():
 
     with pytest.raises(KeyError):
         _read_mysuper(raw_bytes)
+
+
+# ── download_apra.validate_workbook ─────────────────────────────────────
+
+_MYSUPER_SCHEMA = EXPECTED_SCHEMAS["mysuper_quarterly"]
+
+
+def test_validate_workbook_accepts_file_that_read_mysuper_can_parse(tmp_path):
+    path = tmp_path / "mysuper.xlsx"
+    path.write_bytes(_mysuper_workbook())
+
+    validate_workbook(path, _MYSUPER_SCHEMA)  # no exception
+    assert len(_read_mysuper(path.read_bytes())) == 1
+
+
+def test_validate_workbook_reports_missing_sheet_and_missing_columns_together(tmp_path):
+    table_1a_renamed = [
+        ["Table 1a", None, None],
+        [None, None, None],
+        [None, None, None],
+        ["Period*", "MySuper product name", "Fund Identifier", "Total assets"],
+    ]
+    table_4 = [
+        ["Table 4", None, None],
+        [None, None, None],
+        ["Period *", "MySuper product name", "Fund ABN", "Member accounts"],
+    ]
+    path = tmp_path / "restructured.xlsx"
+    path.write_bytes(_make_workbook({"Table 1a": table_1a_renamed, "Table 4": table_4}))
+
+    with pytest.raises(SchemaValidationError) as exc_info:
+        validate_workbook(path, _MYSUPER_SCHEMA)
+
+    message = str(exc_info.value)
+    assert "missing sheet 'Table 2a'" in message
+    assert "sheet 'Table 1a' header row 3 is missing columns ['Fund ABN']" in message
+    assert "sheet 'Table 4'" not in message
+
+
+def test_validate_workbook_fails_when_header_row_shifts(tmp_path):
+    # APRA inserting an extra title row moves the header off row 2; load_to_postgres
+    # reads a fixed header row, so this must be caught rather than loading junk names.
+    table_4_shifted = [
+        ["Table 4", None, None],
+        ["New subtitle", None, None],
+        [None, None, None],
+        ["Period *", "MySuper product name", "Fund ABN", "Member accounts"],
+        ["Sep-2025", "Balanced", "12345678901", 500],
+    ]
+    path = tmp_path / "shifted.xlsx"
+    path.write_bytes(_make_workbook({"Table 4": table_4_shifted}))
+
+    with pytest.raises(SchemaValidationError, match="'Table 4' header row 2"):
+        validate_workbook(path, {"Table 4": _MYSUPER_SCHEMA["Table 4"]})
+
+
+def test_validate_workbook_fails_when_sheet_is_shorter_than_header_row(tmp_path):
+    path = tmp_path / "truncated.xlsx"
+    path.write_bytes(_make_workbook({"Table 4": [["Table 4", None, None]]}))
+
+    with pytest.raises(SchemaValidationError, match="'Table 4' header row 2"):
+        validate_workbook(path, {"Table 4": _MYSUPER_SCHEMA["Table 4"]})
+
+
+def test_validate_workbook_normalises_whitespace_in_header_cells(tmp_path):
+    rows = [
+        ["Table 4", None, None],
+        [None, None, None],
+        ["Period *", "MySuper\nproduct  name", "Fund ABN", "Member accounts"],
+    ]
+    path = tmp_path / "wrapped.xlsx"
+    path.write_bytes(_make_workbook({"Table 4": rows}))
+
+    validate_workbook(path, {"Table 4": _MYSUPER_SCHEMA["Table 4"]})
+
+
+def test_validate_workbook_rejects_non_excel_download(tmp_path):
+    path = tmp_path / "apra_fund_level_quarterly.xlsx"
+    path.write_bytes(b"<html><body>Page moved</body></html>")
+
+    with pytest.raises(SchemaValidationError, match="not a readable .xlsx workbook"):
+        validate_workbook(path, {})
+
+
+def test_download_all_stops_before_cleaning_when_validation_fails(tmp_path, monkeypatch):
+    bad = tmp_path / "bad.xlsx"
+    bad.write_bytes(_make_workbook({"Cover": [["Notice"]]}))
+    monkeypatch.setattr(download_apra, "download_file", lambda key, source: bad)
+    cleaned = []
+    monkeypatch.setattr(download_apra, "clean_excel", lambda path: cleaned.append(path))
+
+    with pytest.raises(SchemaValidationError, match="missing sheet 'Table 2a'"):
+        download_apra.download_all()
+
+    assert cleaned == []
 
 
 # ── upload_to_s3.upload_raw_files ───────────────────────────────────────

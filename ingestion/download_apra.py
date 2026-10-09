@@ -29,9 +29,70 @@ APRA_SOURCES = {
 }
 
 
+# Structural contract each publication must meet before it enters the pipeline:
+# sheet name -> (0-based header row, columns that must appear on that row).
+# Mirrors the hard-coded sheets/header rows/column names in
+# load_to_postgres._read_mysuper, so a restructured APRA file fails here, at
+# download, instead of loading partial or NULL data downstream.
+# Sources with no entry are only checked for being a readable workbook.
+EXPECTED_SCHEMAS = {
+    "mysuper_quarterly": {
+        "Table 2a": (4, [
+            "Period*", "MySuper product name", "Fund name", "Fund ABN", "Fund type",
+            "One-year net return (rep member) - Annualised",
+            "Three year net return (rep member) - Annualised",
+            "Five year net return (rep member) - Annualised",
+            "Investment fees (rep member)",
+            "Administration fees and costs (rep member)",
+            "Total fees and costs (rep member)",
+        ]),
+        "Table 1a": (3, ["Period*", "MySuper product name", "Fund ABN", "Total assets"]),
+        "Table 4": (2, ["Period *", "MySuper product name", "Fund ABN", "Member accounts"]),
+    },
+}
+
+
+class SchemaValidationError(ValueError):
+    """Raised when a downloaded APRA workbook does not match its expected structure."""
+
+
 def _snake(name: str) -> str:
     name = re.sub(r"[^\w\s]", "", name)
     return re.sub(r"\s+", "_", name.strip()).lower()
+
+
+def _norm(col: str) -> str:
+    """Collapse newlines/whitespace in a header cell (same rule as load_to_postgres._norm)."""
+    return re.sub(r"\s+", " ", str(col).strip())
+
+
+def validate_workbook(path: Path, expected: dict) -> None:
+    """Check sheet names and header columns, reporting every problem found at once."""
+    try:
+        xl = pd.ExcelFile(path, engine="openpyxl")
+    except Exception as exc:  # e.g. an HTML error page saved as .xlsx
+        raise SchemaValidationError(f"{path.name} is not a readable .xlsx workbook: {exc}") from exc
+
+    problems = []
+    for sheet, (header_row, columns) in expected.items():
+        if sheet not in xl.sheet_names:
+            problems.append(f"missing sheet {sheet!r} (found: {xl.sheet_names})")
+            continue
+        try:
+            # Same header= read as load_to_postgres, so the check matches what it will parse.
+            header = pd.read_excel(xl, sheet_name=sheet, header=header_row, nrows=0)
+        except ValueError:  # sheet has fewer rows than the header row index
+            problems.append(f"sheet {sheet!r} header row {header_row} is missing columns {columns}")
+            continue
+        found = {_norm(c) for c in header.columns}
+        missing = [c for c in columns if c not in found]
+        if missing:
+            problems.append(f"sheet {sheet!r} header row {header_row} is missing columns {missing}")
+
+    if problems:
+        raise SchemaValidationError(
+            f"{path.name} failed schema validation:\n  - " + "\n  - ".join(problems)
+        )
 
 
 def download_file(key: str, source: dict) -> Path:
@@ -74,6 +135,7 @@ def download_all() -> dict[str, pd.DataFrame]:
     frames = {}
     for key, source in APRA_SOURCES.items():
         path = download_file(key, source)
+        validate_workbook(path, EXPECTED_SCHEMAS.get(key, {}))
         frames[key] = clean_excel(path)
     return frames
 
