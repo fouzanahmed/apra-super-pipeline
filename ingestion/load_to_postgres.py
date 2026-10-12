@@ -19,6 +19,7 @@ Run:  python -m ingestion.load_to_postgres            # read today's files from 
 """
 import argparse
 import io
+import logging
 import os
 import re
 from datetime import date, datetime, timezone
@@ -29,7 +30,11 @@ import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
 
+from ingestion import configure_logging
+
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 S3_BUCKET = os.environ.get("S3_BUCKET")
 RAW_DIR = Path("data/raw")
@@ -159,7 +164,7 @@ def load_all(run_date: date | None = None, local: bool = False) -> None:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
 
     for filename, table in TABLES.items():
-        print(f"Loading {filename} -> {table}")
+        logger.info("Loading %s -> %s (source: %s)", filename, table, "local" if local else "s3")
         df = _read_source(run_date, filename, local)
         df["_loaded_at"] = pd.Timestamp.utcnow()
         df["_run_date"] = run_date
@@ -175,10 +180,11 @@ def load_all(run_date: date | None = None, local: bool = False) -> None:
                 if_exists="append", index=False,
                 method="multi", chunksize=5000,
             )
-        print(f"  Loaded {len(df)} rows into {table}")
+        logger.info("Loaded %d rows into %s", len(df), table)
 
 
 if __name__ == "__main__":
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--local", action="store_true", help="read Excel files from data/raw/ instead of S3")
     load_all(local=parser.parse_args().local)
