@@ -7,6 +7,7 @@ GET  /health
 SQL is written by Claude through the API when ANTHROPIC_API_KEY is set; otherwise, for local
 development, through the Claude Code CLI (`claude -p`) using your logged-in Claude account.
 """
+import logging
 import os
 import re
 import shutil
@@ -22,7 +23,12 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="APRA Super Query API", version="1.1.0")
+# Same format as ingestion/__init__.py. Defined here because the API image ships api/ only.
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper(), format=LOG_FORMAT)
+logger = logging.getLogger(__name__)
+
+app =FastAPI(title="APRA Super Query API", version="1.1.0")
 
 MODEL = "claude-sonnet-4-6"
 MAX_ROWS = 200
@@ -121,12 +127,14 @@ def _ask_claude_code(question: str) -> str:
     """
     cli = shutil.which("claude")
     if not cli:
+        logger.error("No ANTHROPIC_API_KEY and Claude Code CLI not found on PATH")
         raise HTTPException(
             status_code=503,
             detail="No Claude access: set ANTHROPIC_API_KEY in .env, or run the API locally "
                    "where the Claude Code CLI (`claude`) is installed and logged in.",
         )
     prompt = f"{_system_prompt()}\n\nQuestion: {question}"
+    logger.info("Generating SQL via Claude Code CLI (no API key set)")
     try:
         result = subprocess.run(
             [cli, "-p", "--model", "sonnet", "--tools", ""],
@@ -134,8 +142,10 @@ def _ask_claude_code(question: str) -> str:
             timeout=180, cwd=tempfile.gettempdir(), check=False,
         )
     except subprocess.TimeoutExpired:
+        logger.error("Claude Code CLI timed out")
         raise HTTPException(status_code=504, detail="Claude Code CLI timed out.")
     if result.returncode != 0:
+        logger.error("Claude Code CLI exited %d: %s", result.returncode, result.stderr.strip()[:500])
         raise HTTPException(status_code=502, detail=f"Claude Code CLI failed: {result.stderr.strip()[:500]}")
     return result.stdout
 
@@ -184,22 +194,33 @@ def query(req: QueryRequest):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question must not be empty")
 
+    logger.info("Query received: %r", req.question)
     try:
         sql = _generate_sql(req.question)
     except anthropic.AuthenticationError:
+        logger.error("Claude API authentication failed")
         raise HTTPException(status_code=503, detail="Claude API key missing or invalid (set ANTHROPIC_API_KEY).")
     except anthropic.APIError as e:
+        logger.error("Claude API error: %s", e)
         raise HTTPException(status_code=502, detail=f"Claude API error: {e}")
+    logger.info("Generated SQL: %s", " ".join(sql.split()))
 
-    _validate_sql(sql)
+    try:
+        _validate_sql(sql)
+    except HTTPException as e:
+        logger.warning("Rejected generated SQL: %s", e.detail)
+        raise
 
     try:
         results = _run_sql(sql)
     except psycopg2.errors.ReadOnlySqlTransaction:
+        logger.warning("Blocked write attempt by generated SQL")
         raise HTTPException(status_code=400, detail=f"Query tried to modify data and was blocked.\n\nGenerated SQL:\n{sql}")
     except psycopg2.Error as e:
+        logger.error("SQL execution failed: %s", e)
         raise HTTPException(status_code=500, detail=f"SQL execution failed: {e}\n\nGenerated SQL:\n{sql}")
 
+    logger.info("Query returned %d rows", len(results))
     return QueryResponse(question=req.question, sql=sql, results=results, row_count=len(results))
 
 

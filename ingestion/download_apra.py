@@ -2,6 +2,7 @@
 Download APRA superannuation Excel files from the public website.
 Run: python -m ingestion.download_apra
 """
+import logging
 import re
 from pathlib import Path
 
@@ -9,7 +10,11 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from ingestion import configure_logging
+
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 RAW_DIR = Path("data/raw")
 
@@ -37,11 +42,11 @@ def _snake(name: str) -> str:
 def download_file(key: str, source: dict) -> Path:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     dest = RAW_DIR / source["filename"]
-    print(f"Downloading {key} -> {dest}")
+    logger.info("Downloading %s -> %s", key, dest)
     r = requests.get(source["url"], timeout=120)
     r.raise_for_status()
     dest.write_bytes(r.content)
-    print(f"  Saved {len(r.content) / 1024:.0f} KB")
+    logger.info("Saved %s (%.0f KB)", dest.name, len(r.content) / 1024)
     return dest
 
 
@@ -66,7 +71,7 @@ def clean_excel(path: Path) -> pd.DataFrame:
     df.columns = [_snake(str(c)) for c in df.columns]
     df = df.dropna(how="all")
     df = df.loc[:, ~df.columns.str.startswith("unnamed")]
-    print(f"  {path.name} (sheet: {sheet!r}): {len(df)} rows, {len(df.columns)} columns")
+    logger.info("Cleaned %s (sheet: %r): %d rows, %d columns", path.name, sheet, len(df), len(df.columns))
     return df
 
 
@@ -79,7 +84,7 @@ def download_all() -> dict[str, pd.DataFrame]:
 
 
 if __name__ == "__main__":
+    configure_logging()
     frames = download_all()
     for key, df in frames.items():
-        print(f"\n{key}: {df.shape}")
-        print(df.head(2))
+        logger.info("%s: shape=%s\n%s", key, df.shape, df.head(2).to_string())
