@@ -11,7 +11,10 @@ from datetime import date
 
 import pandas as pd
 import pytest
+from boto3.exceptions import S3UploadFailedError
+from botocore.exceptions import NoCredentialsError
 from openpyxl import Workbook
+from sqlalchemy.exc import OperationalError
 
 # load_to_postgres / upload_to_s3 read these env vars at import time.
 os.environ.setdefault("S3_BUCKET", "test-bucket")
@@ -21,7 +24,8 @@ os.environ.setdefault("POSTGRES_DB", "testdb")
 os.environ.setdefault("POSTGRES_USER", "testuser")
 os.environ.setdefault("POSTGRES_PASSWORD", "testpass")
 
-from ingestion import upload_to_s3
+import ingestion
+from ingestion import load_to_postgres, upload_to_s3, with_retry
 from ingestion.download_apra import _snake, clean_excel
 from ingestion.load_to_postgres import _norm, _read_mysuper
 
@@ -322,3 +326,116 @@ def test_upload_raw_files_returns_empty_list_when_no_files(tmp_path, monkeypatch
 
     assert uploaded == []
     assert fake_client.calls == []
+
+
+# ── with_retry ──────────────────────────────────────────────────────────
+
+class _Flaky:
+    """Callable that raises `exc` for the first `failures` calls, then returns "ok"."""
+
+    def __init__(self, failures, exc):
+        self.failures = failures
+        self.exc = exc
+        self.calls = 0
+
+    def __call__(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise self.exc
+        return "ok"
+
+
+@pytest.fixture
+def sleeps(monkeypatch):
+    """Record backoff delays instead of actually sleeping."""
+    delays = []
+    monkeypatch.setattr(ingestion.time, "sleep", delays.append)
+    return delays
+
+
+def test_with_retry_succeeds_after_transient_failures_with_exponential_backoff(sleeps):
+    fn = _Flaky(2, ConnectionError("blip"))
+
+    assert with_retry(fn, retry_on=(ConnectionError,), what="test") == "ok"
+    assert fn.calls == 3
+    assert sleeps == [2.0, 4.0]
+
+
+def test_with_retry_reraises_after_last_attempt(sleeps):
+    fn = _Flaky(5, ConnectionError("down"))
+
+    with pytest.raises(ConnectionError, match="down"):
+        with_retry(fn, retry_on=(ConnectionError,), what="test", attempts=3)
+
+    assert fn.calls == 3
+    assert sleeps == [2.0, 4.0]  # no sleep after the final failure
+
+
+def test_with_retry_does_not_retry_unlisted_errors(sleeps):
+    fn = _Flaky(1, ValueError("bad input"))
+
+    with pytest.raises(ValueError):
+        with_retry(fn, retry_on=(ConnectionError,), what="test")
+
+    assert fn.calls == 1
+    assert sleeps == []
+
+
+class _FlakyS3Client(_FakeS3Client):
+    def __init__(self, failures, exc):
+        super().__init__()
+        self.flaky = _Flaky(failures, exc)
+
+    def upload_file(self, filename, bucket, key):
+        self.flaky()
+        super().upload_file(filename, bucket, key)
+
+
+def test_upload_raw_files_retries_transient_s3_failure(tmp_path, monkeypatch, sleeps):
+    client = _FlakyS3Client(1, S3UploadFailedError("Failed to upload: RequestTimeout"))
+    monkeypatch.setattr(upload_to_s3, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(upload_to_s3.boto3, "client", lambda *a, **k: client)
+    (tmp_path / "apra_mysuper_quarterly.xlsx").write_bytes(b"fake xlsx bytes")
+
+    uploaded = upload_to_s3.upload_raw_files(run_date=date(2026, 1, 15))
+
+    assert uploaded == ["raw/2026-01-15/apra_mysuper_quarterly.xlsx"]
+    assert client.flaky.calls == 2
+    assert len(client.calls) == 1
+    assert sleeps == [2.0]
+
+
+def test_upload_raw_files_fails_fast_on_credentials_error(tmp_path, monkeypatch, sleeps):
+    client = _FlakyS3Client(99, NoCredentialsError())
+    monkeypatch.setattr(upload_to_s3, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(upload_to_s3.boto3, "client", lambda *a, **k: client)
+    (tmp_path / "apra_mysuper_quarterly.xlsx").write_bytes(b"fake xlsx bytes")
+
+    with pytest.raises(NoCredentialsError):
+        upload_to_s3.upload_raw_files(run_date=date(2026, 1, 15))
+
+    assert client.flaky.calls == 1
+    assert sleeps == []
+
+
+# ── load_to_postgres.load_all retry ─────────────────────────────────────
+
+def test_load_all_retries_table_write_on_operational_error(monkeypatch, sleeps):
+    db_down_once = _Flaky(1, OperationalError("INSERT", {}, Exception("server closed the connection")))
+    written = []
+
+    def fake_write_table(engine, df, table):
+        db_down_once()
+        written.append(table)
+
+    monkeypatch.setattr(load_to_postgres, "create_engine", lambda *a, **k: object())
+    monkeypatch.setattr(load_to_postgres, "_create_raw_schema", lambda engine: None)
+    monkeypatch.setattr(load_to_postgres, "_read_source",
+                        lambda run_date, filename, local: pd.DataFrame({"a": [1]}))
+    monkeypatch.setattr(load_to_postgres, "_write_table", fake_write_table)
+
+    load_to_postgres.load_all(run_date=date(2026, 1, 15), local=True)
+
+    assert db_down_once.calls == len(load_to_postgres.TABLES) + 1
+    assert written == list(load_to_postgres.TABLES.values())
+    assert sleeps == [2.0]

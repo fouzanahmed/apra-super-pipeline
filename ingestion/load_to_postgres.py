@@ -23,14 +23,17 @@ import logging
 import os
 import re
 from datetime import date, datetime, timezone
+from functools import partial
 from pathlib import Path
 
 import boto3
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 
-from ingestion import configure_logging
+from ingestion import configure_logging, with_retry
 
 load_dotenv()
 
@@ -156,30 +159,40 @@ def _read_source(run_date: date, filename: str, local: bool = False) -> pd.DataF
     return df
 
 
-def load_all(run_date: date | None = None, local: bool = False) -> None:
-    run_date = run_date or datetime.now(timezone.utc).date()  # UTC so upload and load agree on any machine
-    engine = create_engine(DB_URL)
-
+def _create_raw_schema(engine: Engine) -> None:
     with engine.begin() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
+
+
+def _write_table(engine: Engine, df: pd.DataFrame, table: str) -> None:
+    schema, tbl = table.split(".")
+    # Truncate + append in one transaction instead of if_exists="replace":
+    # "replace" DROPs the table, which Postgres refuses once dbt views depend on it.
+    # Readers keep seeing the previous load until this commits, so reruns are safe.
+    with engine.begin() as conn:
+        if inspect(conn).has_table(tbl, schema=schema):
+            conn.execute(text(f"TRUNCATE TABLE {table}"))
+        df.to_sql(
+            tbl, conn, schema=schema,
+            if_exists="append", index=False,
+            method="multi", chunksize=5000,
+        )
+
+
+def load_all(run_date: date | None = None, local: bool = False) -> None:
+    run_date = run_date or datetime.now(timezone.utc).date()  # UTC so upload and load agree on any machine
+    engine = create_engine(DB_URL, pool_pre_ping=True)  # drop dead pooled connections before retrying
+
+    # OperationalError covers dropped connections and timeouts. Each write is one
+    # transaction that rolls back on failure, so retrying it cannot double-load rows.
+    with_retry(partial(_create_raw_schema, engine), retry_on=(OperationalError,), what="CREATE SCHEMA raw")
 
     for filename, table in TABLES.items():
         logger.info("Loading %s -> %s (source: %s)", filename, table, "local" if local else "s3")
         df = _read_source(run_date, filename, local)
         df["_loaded_at"] = pd.Timestamp.utcnow()
         df["_run_date"] = run_date
-        schema, tbl = table.split(".")
-        # Truncate + append in one transaction instead of if_exists="replace":
-        # "replace" DROPs the table, which Postgres refuses once dbt views depend on it.
-        # Readers keep seeing the previous load until this commits, so reruns are safe.
-        with engine.begin() as conn:
-            if inspect(conn).has_table(tbl, schema=schema):
-                conn.execute(text(f"TRUNCATE TABLE {table}"))
-            df.to_sql(
-                tbl, conn, schema=schema,
-                if_exists="append", index=False,
-                method="multi", chunksize=5000,
-            )
+        with_retry(partial(_write_table, engine, df, table), retry_on=(OperationalError,), what=f"load into {table}")
         logger.info("Loaded %d rows into %s", len(df), table)
 
 
