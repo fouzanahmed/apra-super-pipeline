@@ -47,6 +47,12 @@ jobs:
       - name: Unit tests (pytest)
         run: pytest -q
 
+      - name: Install test dependencies
+        run: pip install -r requirements-local.txt
+
+      - name: Run tests (pytest)
+        run: pytest -q
+
       - name: dbt compile (validates SQL without running)
         run: |
           mkdir -p ~/.dbt
