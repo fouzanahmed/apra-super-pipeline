@@ -38,8 +38,9 @@ jobs:
 
       # Pinned versions (ruff, dbt) so CI and local behave the same; unpinned ruff
       # once picked up new default rules and failed the PR.
+      # requirements-api.txt lets pytest import api/main.py (tests/test_api.py).
       - name: Install dependencies
-        run: pip install -r requirements-local.txt -r requirements-dbt.txt
+        run: pip install -r requirements-local.txt -r requirements-dbt.txt -r requirements-api.txt
 
       - name: Lint Python (ruff)
         run: ruff check ingestion/ api/ spark/ tests/

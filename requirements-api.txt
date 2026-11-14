@@ -1,6 +1,9 @@
-# FastAPI NL-to-SQL service — used by api/Dockerfile.
+# FastAPI NL-to-SQL service — used by api/Dockerfile, and installed in CI for tests/test_api.py.
+# psycopg2-binary must match requirements-local.txt: CI installs both files together.
 fastapi==0.111.1
 uvicorn==0.30.1
 anthropic==1.9.0
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
 python-dotenv==1.2.3
+# Needed by fastapi.testclient.TestClient.
+httpx==0.27.2
